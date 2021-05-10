@@ -20,7 +20,7 @@ import {
     bindContributionProvider, MessageService, MessageClient, ConnectionHandler, JsonRpcConnectionHandler,
     CommandService, commandServicePath, messageServicePath
 } from '../common';
-import { BackendApplication, BackendApplicationContribution, BackendApplicationCliContribution } from './backend-application';
+import { BackendApplication, BackendApplicationContribution, BackendApplicationCliContribution, BackendApplicationServer } from './backend-application';
 import { CliManager, CliContribution } from './cli';
 import { IPCConnectionProvider } from './messaging';
 import { ApplicationServerImpl } from './application-server';
@@ -59,6 +59,11 @@ export const backendApplicationModule = new ContainerModule(bind => {
 
     bind(BackendApplication).toSelf().inSingletonScope();
     bindContributionProvider(bind, BackendApplicationContribution);
+    bind(BackendApplicationContribution).toDynamicValue(
+        ctx => ctx.container.isBound(BackendApplicationServer)
+            ? ctx.container.get(BackendApplicationServer)
+            : {} // default to empty contribution if not bound
+    ).inSingletonScope();
 
     bind(IPCConnectionProvider).toSelf().inSingletonScope();
 
