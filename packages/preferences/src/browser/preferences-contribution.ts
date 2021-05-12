@@ -14,7 +14,7 @@
  * SPDX-License-Identifier: EPL-2.0 OR GPL-2.0 WITH Classpath-exception-2.0
  ********************************************************************************/
 
-import { injectable, inject, named } from 'inversify';
+import { injectable, inject, named } from '@theia/core/shared/inversify';
 import { MenuModelRegistry, CommandRegistry } from '@theia/core';
 import {
     CommonMenus,
@@ -59,7 +59,7 @@ export class PreferencesContribution extends AbstractViewContribution<Preference
 
     registerCommands(commands: CommandRegistry): void {
         commands.registerCommand(CommonCommands.OPEN_PREFERENCES, {
-            execute: () => this.openView({ reveal: true }),
+            execute: () => this.openView({ activate: true }),
         });
         commands.registerCommand(PreferencesCommands.OPEN_PREFERENCES_JSON_TOOLBAR, {
             isEnabled: () => true,

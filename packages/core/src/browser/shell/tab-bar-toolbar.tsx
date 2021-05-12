@@ -179,9 +179,11 @@ export class TabBarToolbar extends ReactWidget {
                 const paths: string[] = [];
                 for (let i = 0; i < split.length - 1; i += 2) {
                     paths.push(split[i], split[i + 1]);
+                    // TODO order is missing, items sorting will be alphabetic
                     toDisposeOnHide.push(this.menus.registerSubmenu([...menuPath, ...paths], split[i + 1]));
                 }
             }
+            // TODO order is missing, items sorting will be alphabetic
             toDisposeOnHide.push(this.menus.registerMenuAction([...menuPath, ...item.group!.split('/')], {
                 label: item.tooltip,
                 commandId: item.id,
@@ -453,6 +455,13 @@ export class TabBarToolbarRegistry implements FrontendApplicationContribution {
             }
         }
         return result;
+    }
+
+    unregisterItem(itemOrId: TabBarToolbarItem | ReactTabBarToolbarItem | string): void {
+        const id = typeof itemOrId === 'string' ? itemOrId : itemOrId.id;
+        if (this.items.delete(id)) {
+            this.fireOnDidChange();
+        }
     }
 
 }

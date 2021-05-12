@@ -14,9 +14,9 @@
  * SPDX-License-Identifier: EPL-2.0 OR GPL-2.0 WITH Classpath-exception-2.0
  ********************************************************************************/
 
-import { inject, injectable, postConstruct } from 'inversify';
-import { TabBar, Widget, Title } from '@phosphor/widgets';
-import { PreferenceScope, Message, ContextMenuRenderer, LabelProvider } from '@theia/core/lib/browser';
+import { inject, injectable, postConstruct } from '@theia/core/shared/inversify';
+import { TabBar, Widget, Title } from '@theia/core/shared/@phosphor/widgets';
+import { PreferenceScope, Message, ContextMenuRenderer, LabelProvider, StatefulWidget } from '@theia/core/lib/browser';
 import { WorkspaceService } from '@theia/workspace/lib/browser/workspace-service';
 import URI from '@theia/core/lib/common/uri';
 import { FileStat } from '@theia/filesystem/lib/common/files';
@@ -41,8 +41,12 @@ const SINGLE_FOLDER_TAB_CLASSNAME = `${PREFERENCE_TAB_CLASSNAME} ${GENERAL_FOLDE
 const UNSELECTED_FOLDER_DROPDOWN_CLASSNAME = `${PREFERENCE_TAB_CLASSNAME} ${GENERAL_FOLDER_TAB_CLASSNAME} ${FOLDER_DROPDOWN_CLASSNAME}`;
 const SELECTED_FOLDER_DROPDOWN_CLASSNAME = `${PREFERENCE_TAB_CLASSNAME} ${GENERAL_FOLDER_TAB_CLASSNAME} ${LABELED_FOLDER_TAB_CLASSNAME} ${FOLDER_DROPDOWN_CLASSNAME}`;
 
+export interface PreferencesScopeTabBarState {
+    scopeDetails: Preference.SelectedScopeDetails;
+}
+
 @injectable()
-export class PreferencesScopeTabBar extends TabBar<Widget> {
+export class PreferencesScopeTabBar extends TabBar<Widget> implements StatefulWidget {
 
     static ID = 'preferences-scope-tab-bar';
     @inject(WorkspaceService) protected readonly workspaceService: WorkspaceService;
@@ -247,5 +251,15 @@ export class PreferencesScopeTabBar extends TabBar<Widget> {
 
     protected emitNewScope(): void {
         this.onScopeChangedEmitter.fire(this.currentSelection);
+    }
+
+    storeState(): PreferencesScopeTabBarState {
+        return {
+            scopeDetails: this.currentScope
+        };
+    }
+
+    restoreState(oldState: PreferencesScopeTabBarState): void {
+        this.setNewScopeSelection(oldState.scopeDetails);
     }
 }

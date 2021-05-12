@@ -14,18 +14,19 @@
  * SPDX-License-Identifier: EPL-2.0 OR GPL-2.0 WITH Classpath-exception-2.0
  ********************************************************************************/
 
-import { injectable, inject, named } from 'inversify';
+import { injectable, inject, named } from '@theia/core/shared/inversify';
 import { ITokenTypeMap, IEmbeddedLanguagesMap, StandardTokenType } from 'vscode-textmate';
 import { TextmateRegistry, getEncodedLanguageId, MonacoTextmateService, GrammarDefinition } from '@theia/monaco/lib/browser/textmate';
 import { MenusContributionPointHandler } from './menus/menus-contribution-handler';
 import { PluginViewRegistry } from './view/plugin-view-registry';
+import { PluginCustomEditorRegistry } from './custom-editors/plugin-custom-editor-registry';
 import { PluginContribution, IndentationRules, FoldingRules, ScopeMap, DeployedPlugin, GrammarsContribution } from '../../common';
 import {
     DefaultUriLabelProviderContribution,
     LabelProviderContribution,
     PreferenceSchemaProvider
 } from '@theia/core/lib/browser';
-import { PreferenceSchema, PreferenceSchemaProperties } from '@theia/core/lib/browser/preferences';
+import { PreferenceLanguageOverrideService, PreferenceSchema, PreferenceSchemaProperties } from '@theia/core/lib/browser/preferences';
 import { KeybindingsContributionPointHandler } from './keybindings/keybindings-contribution-handler';
 import { MonacoSnippetSuggestProvider } from '@theia/monaco/lib/browser/monaco-snippet-suggest-provider';
 import { PluginSharedStyle } from './plugin-shared-style';
@@ -51,11 +52,17 @@ export class PluginContributionHandler {
     @inject(PluginViewRegistry)
     private readonly viewRegistry: PluginViewRegistry;
 
+    @inject(PluginCustomEditorRegistry)
+    private readonly customEditorRegistry: PluginCustomEditorRegistry;
+
     @inject(MenusContributionPointHandler)
     private readonly menusContributionHandler: MenusContributionPointHandler;
 
     @inject(PreferenceSchemaProvider)
     private readonly preferenceSchemaProvider: PreferenceSchemaProvider;
+
+    @inject(PreferenceLanguageOverrideService)
+    private readonly preferenceOverrideService: PreferenceLanguageOverrideService;
 
     @inject(MonacoTextmateService)
     private readonly monacoTextmateService: MonacoTextmateService;
@@ -231,6 +238,14 @@ export class PluginContributionHandler {
         pushContribution('commands', () => this.registerCommands(contributions));
         pushContribution('menus', () => this.menusContributionHandler.handle(plugin));
         pushContribution('keybindings', () => this.keybindingsContributionHandler.handle(contributions));
+
+        if (contributions.customEditors) {
+            for (const customEditor of contributions.customEditors) {
+                pushContribution(`customEditors.${customEditor.viewType}`,
+                    () => this.customEditorRegistry.registerCustomEditor(customEditor)
+                );
+            }
+        }
 
         if (contributions.viewsContainers) {
             for (const location in contributions.viewsContainers) {
@@ -417,7 +432,7 @@ export class PluginContributionHandler {
         // eslint-disable-next-line guard-for-in
         for (const key in configurationDefaults) {
             const defaultValue = configurationDefaults[key];
-            if (this.preferenceSchemaProvider.testOverrideValue(key, defaultValue)) {
+            if (this.preferenceOverrideService.testOverrideValue(key, defaultValue)) {
                 defaultOverrides.properties[key] = {
                     type: 'object',
                     default: defaultValue,

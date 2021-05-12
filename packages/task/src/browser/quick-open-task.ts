@@ -14,7 +14,7 @@
  * SPDX-License-Identifier: EPL-2.0 OR GPL-2.0 WITH Classpath-exception-2.0
  ********************************************************************************/
 
-import { inject, injectable } from 'inversify';
+import { inject, injectable } from '@theia/core/shared/inversify';
 import { TaskService } from './task-service';
 import { TaskInfo, TaskConfiguration, TaskCustomization, TaskScope, TaskConfigurationScope } from '../common/task-protocol';
 import { TaskDefinitionRegistry } from './task-definition-registry';
@@ -246,7 +246,7 @@ export class QuickOpenTask implements QuickOpenModel, QuickOpenHandler {
         if (this.workspaceService.opened) {
             const roots = await this.workspaceService.roots;
             scopes.push(...roots.map(rootStat => rootStat.resource.toString()));
-            if (this.workspaceService.saved) {
+            if (this.workspaceService.saved || groupedTasks.get(TaskScope.Workspace.toString())?.length) {
                 scopes.push(TaskScope.Workspace);
             }
         }

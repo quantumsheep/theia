@@ -1,5 +1,5 @@
 /********************************************************************************
- * Copyright (C) 2020 Ericsson and others.
+ * Copyright (C) 2018 Red Hat, Inc. and others.
  *
  * This program and the accompanying materials are made available under the
  * terms of the Eclipse Public License v. 2.0 which is available at
@@ -14,11 +14,20 @@
  * SPDX-License-Identifier: EPL-2.0 OR GPL-2.0 WITH Classpath-exception-2.0
  ********************************************************************************/
 
-import { ElectronMainApplicationContribution } from '@theia/core/lib/electron-main/electron-main-application';
-import { ContainerModule } from 'inversify';
-import { MiniBrowserElectronMainContribution } from './mini-browser-electron-main-contribution';
+import * as assert from 'assert';
+import * as types from './types-impl';
 
-export default new ContainerModule(bind => {
-    bind(MiniBrowserElectronMainContribution).toSelf().inSingletonScope();
-    bind(ElectronMainApplicationContribution).toService(MiniBrowserElectronMainContribution);
+describe('API Type Implementations:', () => {
+
+    describe('URI:', () => {
+         it('should convert to string', () => {
+            const uriString = 'scheme://authority.com/foo/bar/zoz?query#fragment';
+            const uri = types.URI.parse(uriString);
+            // when
+            const result = uri.toString();
+
+            // then
+            assert.strictEqual(result, uriString);
+        });
+    });
 });

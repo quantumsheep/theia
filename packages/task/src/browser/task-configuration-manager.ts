@@ -16,7 +16,7 @@
 
 import * as jsoncparser from 'jsonc-parser';
 import debounce = require('p-debounce');
-import { inject, injectable, postConstruct, named } from 'inversify';
+import { inject, injectable, postConstruct, named } from '@theia/core/shared/inversify';
 import URI from '@theia/core/lib/common/uri';
 import { Emitter, Event } from '@theia/core/lib/common/event';
 import { EditorManager, EditorWidget } from '@theia/editor/lib/browser';
@@ -95,6 +95,9 @@ export class TaskConfigurationManager {
             }
         });
         this.workspaceService.onWorkspaceChanged(() => {
+            this.updateModels();
+        });
+        this.workspaceService.onWorkspaceLocationChanged(() => {
             this.updateModels();
         });
     }
@@ -237,6 +240,7 @@ export class TaskConfigurationManager {
                 }));
             }
             this.models.set(TaskScope.Workspace, workspaceModel);
+            this.onDidChangeTaskConfigEmitter.fire({ scope: TaskScope.Workspace, type: FileChangeType.UPDATED });
         }
     }
 }

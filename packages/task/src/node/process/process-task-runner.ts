@@ -19,7 +19,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { injectable, inject, named } from 'inversify';
+import { injectable, inject, named } from '@theia/core/shared/inversify';
 import { isWindows, isOSX, ILogger } from '@theia/core';
 import { FileUri } from '@theia/core/lib/node';
 import {
@@ -83,7 +83,7 @@ export class ProcessTaskRunner implements TaskRunner {
                 });
             });
 
-            const processType = taskConfig.type as 'process' | 'shell';
+            const processType = (taskConfig.taskType || taskConfig.type) as 'process' | 'shell';
             return this.taskFactory({
                 label: taskConfig.label,
                 process: terminal,
@@ -141,7 +141,7 @@ export class ProcessTaskRunner implements TaskRunner {
          */
         let commandLine: string | undefined;
 
-        if (taskConfig.type === 'shell') {
+        if ((taskConfig.taskType || taskConfig.type) === 'shell') {
             // When running a shell task, we have to spawn a shell process somehow,
             // and tell it to run the command the user wants to run inside of it.
             //

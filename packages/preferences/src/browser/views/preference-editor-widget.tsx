@@ -15,10 +15,10 @@
  ********************************************************************************/
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { postConstruct, injectable, inject } from 'inversify';
-import * as React from 'react';
-import { debounce } from 'lodash';
-import { Disposable } from 'vscode-jsonrpc';
+import { postConstruct, injectable, inject } from '@theia/core/shared/inversify';
+import * as React from '@theia/core/shared/react';
+import debounce = require('@theia/core/shared/lodash.debounce');
+import { Disposable } from '@theia/core/shared/vscode-ws-jsonrpc';
 import {
     ReactWidget,
     PreferenceService,
@@ -27,6 +27,7 @@ import {
     PreferenceItem,
     TreeNode,
     ExpandableTreeNode,
+    StatefulWidget,
 } from '@theia/core/lib/browser';
 import { Message, } from '@theia/core/lib/browser/widgets/widget';
 import { SinglePreferenceDisplayFactory } from './components/single-preference-display-factory';
@@ -36,8 +37,12 @@ import { Emitter } from '@theia/core';
 const HEADER_CLASS = 'settings-section-category-title';
 const SUBHEADER_CLASS = 'settings-section-subcategory-title';
 
+export interface PreferencesEditorState {
+    firstVisibleChildID: string,
+}
+
 @injectable()
-export class PreferencesEditorWidget extends ReactWidget {
+export class PreferencesEditorWidget extends ReactWidget implements StatefulWidget {
     static readonly ID = 'settings.editor';
     static readonly LABEL = 'Settings Editor';
 
@@ -180,8 +185,12 @@ export class PreferencesEditorWidget extends ReactWidget {
 
     protected renderSingleEntry(node: TreeNode): React.ReactNode {
         const values = this.preferenceValueRetrievalService.inspect<PreferenceItem>(node.id, this.model.currentScope.uri);
-        const preferenceNodeWithValueInAllScopes = { ...node, preference: { data: this.model.propertyList[node.id], values } };
-        return this.singlePreferenceFactory.render(preferenceNodeWithValueInAllScopes);
+        const data = this.model.propertyList[node.id];
+        if (data && values) {
+            const preferenceNodeWithValueInAllScopes = { ...node, preference: { data, values } };
+            return this.singlePreferenceFactory.render(preferenceNodeWithValueInAllScopes);
+        }
+        return undefined;
     }
 
     protected renderCategoryHeader({ node, visibleChildren }: PreferenceTreeNodeRow): React.ReactNode {
@@ -218,4 +227,16 @@ export class PreferencesEditorWidget extends ReactWidget {
             }
         }
     }
+
+    storeState(): PreferencesEditorState {
+        return {
+            firstVisibleChildID: this.firstVisibleChildID,
+        };
+    }
+
+    restoreState(oldState: PreferencesEditorState): void {
+        this.firstVisibleChildID = oldState.firstVisibleChildID;
+        this.handleDisplayChange();
+    }
+
 }

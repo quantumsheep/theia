@@ -187,6 +187,7 @@ describe('Type converters:', () => {
 
         const shellTaskDto: TaskDto = {
             type: shellType,
+            taskType: shellType,
             label,
             source,
             scope: 1,
@@ -194,11 +195,16 @@ describe('Type converters:', () => {
             args,
             options: { cwd },
             additionalProperty,
+            presentation: {
+                reveal: 3,
+                focus: true
+            },
             group: groupDto
         };
 
         const shellTaskDtoWithCommandLine: TaskDto = {
             type: shellType,
+            taskType: shellType,
             label,
             source,
             scope: 2,
@@ -214,6 +220,10 @@ describe('Type converters:', () => {
             definition: {
                 type: shellType,
                 additionalProperty
+            },
+            presentationOptions: {
+                reveal: types.TaskRevealKind.Never,
+                focus: true
             },
             group,
             execution: {

@@ -82,6 +82,7 @@ import {
     CodeLens,
     CodeActionKind,
     CodeActionTrigger,
+    CodeActionTriggerKind,
     TextDocumentSaveReason,
     CodeAction,
     TreeItem,
@@ -95,6 +96,7 @@ import {
     ShellQuoting,
     ShellExecution,
     ProcessExecution,
+    CustomExecution,
     TaskScope,
     TaskPanelKind,
     TaskRevealKind,
@@ -130,6 +132,8 @@ import {
     SemanticTokensEdits,
     SemanticTokensEdit,
     ColorThemeKind,
+    SourceControlInputBoxValidationType,
+    URI,
     FileDecoration
 } from './types-impl';
 import { AuthenticationExtImpl } from './authentication-ext';
@@ -137,7 +141,6 @@ import { SymbolKind } from '../common/plugin-api-rpc-model';
 import { EditorsAndDocumentsExtImpl } from './editors-and-documents';
 import { TextEditorsExtImpl } from './text-editors';
 import { DocumentsExtImpl } from './documents';
-import { URI as Uri } from 'vscode-uri';
 import { TextEditorCursorStyle } from '../common/editor-options';
 import { PreferenceRegistryExtImpl } from './preference-registry';
 import { OutputChannelRegistryExtImpl } from './output-channel-registry';
@@ -166,6 +169,7 @@ import { LabelServiceExtImpl } from '../plugin/label-service';
 import { TimelineExtImpl } from './timeline';
 import { ThemingExtImpl } from './theming';
 import { CommentsExtImpl } from './comments';
+import { CustomEditorsExtImpl } from './custom-editors';
 
 export function createAPIFactory(
     rpc: RPCProtocol,
@@ -193,7 +197,7 @@ export function createAPIFactory(
     const outputChannelRegistryExt = rpc.set(MAIN_RPC_CONTEXT.OUTPUT_CHANNEL_REGISTRY_EXT, new OutputChannelRegistryExtImpl(rpc));
     const languagesExt = rpc.set(MAIN_RPC_CONTEXT.LANGUAGES_EXT, new LanguagesExtImpl(rpc, documents, commandRegistry));
     const treeViewsExt = rpc.set(MAIN_RPC_CONTEXT.TREE_VIEWS_EXT, new TreeViewsExtImpl(rpc, commandRegistry));
-    const tasksExt = rpc.set(MAIN_RPC_CONTEXT.TASKS_EXT, new TasksExtImpl(rpc));
+    const tasksExt = rpc.set(MAIN_RPC_CONTEXT.TASKS_EXT, new TasksExtImpl(rpc, terminalExt));
     const connectionExt = rpc.set(MAIN_RPC_CONTEXT.CONNECTION_EXT, new ConnectionExtImpl(rpc));
     const fileSystemExt = rpc.set(MAIN_RPC_CONTEXT.FILE_SYSTEM_EXT, new FileSystemExtImpl(rpc, languagesExt));
     const extHostFileSystemEvent = rpc.set(MAIN_RPC_CONTEXT.ExtHostFileSystemEventService, new ExtHostFileSystemEventService(rpc, editorsAndDocumentsExt));
@@ -203,6 +207,7 @@ export function createAPIFactory(
     const timelineExt = rpc.set(MAIN_RPC_CONTEXT.TIMELINE_EXT, new TimelineExtImpl(rpc, commandRegistry));
     const themingExt = rpc.set(MAIN_RPC_CONTEXT.THEMING_EXT, new ThemingExtImpl(rpc));
     const commentsExt = rpc.set(MAIN_RPC_CONTEXT.COMMENTS_EXT, new CommentsExtImpl(rpc, commandRegistry, documents));
+    const customEditorExt = rpc.set(MAIN_RPC_CONTEXT.CUSTOM_EDITORS_EXT, new CustomEditorsExtImpl(rpc, documents, webviewExt, workspaceExt));
     rpc.set(MAIN_RPC_CONTEXT.DEBUG_EXT, debugExt);
 
     return function (plugin: InternalPlugin): typeof theia {
@@ -323,12 +328,12 @@ export function createAPIFactory(
             onDidChangeTextEditorVisibleRanges(listener, thisArg?, disposables?) {
                 return editors.onDidChangeTextEditorVisibleRanges(listener, thisArg, disposables);
             },
-            async showTextDocument(documentArg: theia.TextDocument | Uri,
+            async showTextDocument(documentArg: theia.TextDocument | URI,
                 columnOrOptions?: theia.TextDocumentShowOptions | theia.ViewColumn,
                 preserveFocus?: boolean
             ): Promise<theia.TextEditor> {
                 let documentOptions: theia.TextDocumentShowOptions | undefined;
-                const uri: Uri = documentArg instanceof Uri ? documentArg : documentArg.uri;
+                const uri: URI = documentArg instanceof URI ? documentArg : documentArg.uri;
                 if (typeof columnOrOptions === 'number') {
                     documentOptions = {
                         viewColumn: columnOrOptions
@@ -366,13 +371,13 @@ export function createAPIFactory(
             showInformationMessage,
             showWarningMessage,
             showErrorMessage,
-            showOpenDialog(options: theia.OpenDialogOptions): PromiseLike<Uri[] | undefined> {
+            showOpenDialog(options: theia.OpenDialogOptions): PromiseLike<URI[] | undefined> {
                 return dialogsExt.showOpenDialog(options);
             },
-            showSaveDialog(options: theia.SaveDialogOptions): PromiseLike<Uri | undefined> {
+            showSaveDialog(options: theia.SaveDialogOptions): PromiseLike<URI | undefined> {
                 return dialogsExt.showSaveDialog(options);
             },
-            showUploadDialog(options: theia.UploadDialogOptions): PromiseLike<Uri[] | undefined> {
+            showUploadDialog(options: theia.UploadDialogOptions): PromiseLike<URI[] | undefined> {
                 return dialogsExt.showUploadDialog(options);
             },
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -396,6 +401,11 @@ export function createAPIFactory(
             },
             registerWebviewPanelSerializer(viewType: string, serializer: theia.WebviewPanelSerializer): theia.Disposable {
                 return webviewExt.registerWebviewPanelSerializer(viewType, serializer, plugin);
+            },
+            registerCustomEditorProvider(viewType: string,
+                provider: theia.CustomTextEditorProvider | theia.CustomReadonlyEditorProvider,
+                options: { webviewOptions?: theia.WebviewPanelOptions, supportsMultipleEditorsPerDocument?: boolean } = {}): theia.Disposable {
+                return customEditorExt.registerCustomEditorProvider(viewType, provider, options, plugin);
             },
             get state(): theia.WindowState {
                 return windowStateExt.getWindowState();
@@ -456,6 +466,9 @@ export function createAPIFactory(
             get workspaceFolders(): theia.WorkspaceFolder[] | undefined {
                 return workspaceExt.workspaceFolders;
             },
+            get workspaceFile(): URI | undefined {
+                return workspaceExt.workspaceFile;
+            },
             get name(): string | undefined {
                 return workspaceExt.name;
             },
@@ -498,11 +511,11 @@ export function createAPIFactory(
             async openTextDocument(uriOrFileNameOrOptions?: theia.Uri | string | { language?: string; content?: string; }): Promise<theia.TextDocument | undefined> {
                 const options = uriOrFileNameOrOptions as { language?: string; content?: string; };
 
-                let uri: Uri;
+                let uri: URI;
                 if (typeof uriOrFileNameOrOptions === 'string') {
-                    uri = Uri.file(uriOrFileNameOrOptions);
+                    uri = URI.file(uriOrFileNameOrOptions);
 
-                } else if (uriOrFileNameOrOptions instanceof Uri) {
+                } else if (uriOrFileNameOrOptions instanceof URI) {
                     uri = uriOrFileNameOrOptions;
 
                 } else if (!options || typeof options === 'object') {
@@ -517,7 +530,7 @@ export function createAPIFactory(
             },
             createFileSystemWatcher: (pattern, ignoreCreate, ignoreChange, ignoreDelete): theia.FileSystemWatcher =>
                 extHostFileSystemEvent.createFileSystemWatcher(fromGlobPattern(pattern), ignoreCreate, ignoreChange, ignoreDelete),
-            findFiles(include: theia.GlobPattern, exclude?: theia.GlobPattern | null, maxResults?: number, token?: CancellationToken): PromiseLike<Uri[]> {
+            findFiles(include: theia.GlobPattern, exclude?: theia.GlobPattern | null, maxResults?: number, token?: CancellationToken): PromiseLike<URI[]> {
                 return workspaceExt.findFiles(include, exclude, maxResults, token);
             },
             findTextInFiles(query: theia.TextSearchQuery, optionsOrCallback: theia.FindTextInFilesOptions | ((result: theia.TextSearchResult) => void),
@@ -602,7 +615,7 @@ export function createAPIFactory(
             get onDidChangeDiagnostics(): theia.Event<theia.DiagnosticChangeEvent> {
                 return languagesExt.onDidChangeDiagnostics;
             },
-            getDiagnostics(resource?: Uri) {
+            getDiagnostics(resource?: URI) {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 return <any>languagesExt.getDiagnostics(resource);
             },
@@ -810,7 +823,7 @@ export function createAPIFactory(
                     throw new Error('Input box not found!');
                 }
             },
-            createSourceControl(id: string, label: string, rootUri?: Uri): theia.SourceControl {
+            createSourceControl(id: string, label: string, rootUri?: URI): theia.SourceControl {
                 return scmExt.createSourceControl(plugin, id, label, rootUri);
             }
         };
@@ -845,7 +858,7 @@ export function createAPIFactory(
             Selection: Selection,
             ViewColumn: ViewColumn,
             TextEditorSelectionChangeKind: TextEditorSelectionChangeKind,
-            Uri: Uri,
+            Uri: URI,
             EndOfLine,
             TextEditorRevealType,
             TextEditorCursorStyle,
@@ -885,6 +898,7 @@ export function createAPIFactory(
             CodeLens,
             CodeActionKind,
             CodeActionTrigger,
+            CodeActionTriggerKind,
             TextDocumentSaveReason,
             CodeAction,
             TreeItem,
@@ -900,6 +914,7 @@ export function createAPIFactory(
             ShellQuoting,
             ShellExecution,
             ProcessExecution,
+            CustomExecution,
             TaskScope,
             TaskRevealKind,
             TaskPanelKind,
@@ -935,6 +950,7 @@ export function createAPIFactory(
             SemanticTokensEdits,
             SemanticTokensEdit,
             ColorThemeKind,
+            SourceControlInputBoxValidationType,
             FileDecoration
         };
     };
@@ -943,12 +959,14 @@ export function createAPIFactory(
 class Plugin<T> implements theia.Plugin<T> {
     id: string;
     pluginPath: string;
+    pluginUri: URI;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     packageJSON: any;
     pluginType: theia.PluginType;
     constructor(private readonly pluginManager: PluginManager, plugin: InternalPlugin) {
         this.id = plugin.model.id;
         this.pluginPath = plugin.pluginFolder;
+        this.pluginUri = URI.file(plugin.pluginFolder);
         this.packageJSON = plugin.rawModel;
         this.pluginType = plugin.model.entryPoint.frontend ? 'frontend' : 'backend';
     }

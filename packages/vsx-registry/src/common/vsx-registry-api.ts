@@ -16,7 +16,7 @@
 
 import * as bent from 'bent';
 import * as semver from 'semver';
-import { injectable, inject } from 'inversify';
+import { injectable, inject } from '@theia/core/shared/inversify';
 import { VSXExtensionRaw, VSXSearchParam, VSXSearchResult, VSXAllVersions } from './vsx-registry-types';
 import { VSXEnvironment } from './vsx-environment';
 import { VSXApiVersionProvider } from './vsx-api-version-provider';
@@ -40,11 +40,6 @@ export namespace VSXResponseError {
             && 'statusCode' in error && typeof error['statusCode'] === 'number';
     }
 }
-
-/**
- * Namespace reserved for vscode builtin extensions.
- */
-const VSCODE_NAMESPACE = 'vscode';
 
 @injectable()
 export class VSXRegistryAPI {
@@ -145,10 +140,7 @@ export class VSXRegistryAPI {
         const extensions = await this.getAllVersions(id);
         for (let i = 0; i < extensions.length; i++) {
             const extension: VSXExtensionRaw = extensions[i];
-            // Skip vscode builtin extensions.
-            if (extension.namespace === VSCODE_NAMESPACE) {
-                return extension;
-            } else if (extension.engines && this.isEngineSupported(extension.engines.vscode)) {
+            if (extension.engines && this.isEngineSupported(extension.engines.vscode)) {
                 return extension;
             }
         }

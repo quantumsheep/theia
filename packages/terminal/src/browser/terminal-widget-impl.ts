@@ -16,7 +16,7 @@
 
 import { Terminal, RendererType } from 'xterm';
 import { FitAddon } from 'xterm-addon-fit';
-import { inject, injectable, named, postConstruct } from 'inversify';
+import { inject, injectable, named, postConstruct } from '@theia/core/shared/inversify';
 import { ContributionProvider, Disposable, Event, Emitter, ILogger, DisposableCollection } from '@theia/core';
 import { Widget, Message, WebSocketConnectionProvider, StatefulWidget, isFirefox, MessageLoop, KeyCode } from '@theia/core/lib/browser';
 import { isOSX } from '@theia/core/lib/common';
@@ -26,7 +26,7 @@ import { terminalsPath } from '../common/terminal-protocol';
 import { IBaseTerminalServer, TerminalProcessInfo } from '../common/base-terminal-protocol';
 import { TerminalWatcher } from '../common/terminal-watcher';
 import { TerminalWidgetOptions, TerminalWidget, TerminalDimensions } from './base/terminal-widget';
-import { MessageConnection } from 'vscode-jsonrpc';
+import { MessageConnection } from '@theia/core/shared/vscode-ws-jsonrpc';
 import { Deferred } from '@theia/core/lib/common/promise-util';
 import { TerminalPreferences, TerminalRendererType, isTerminalRendererType, DEFAULT_TERMINAL_RENDERER_TYPE, CursorStyle } from './terminal-preferences';
 import { TerminalContribution } from './terminal-contribution';
@@ -36,6 +36,7 @@ import { TerminalSearchWidgetFactory, TerminalSearchWidget } from './search/term
 import { TerminalCopyOnSelectionHandler } from './terminal-copy-on-selection-handler';
 import { TerminalThemeService } from './terminal-theme-service';
 import { CommandLineOptions, ShellCommandBuilder } from '@theia/process/lib/common/shell-command-builder';
+import { Key } from '@theia/core/lib/browser/keys';
 
 export const TERMINAL_WIDGET_FACTORY_ID = 'terminal';
 
@@ -59,6 +60,7 @@ export class TerminalWidgetImpl extends TerminalWidget implements StatefulWidget
     protected waitForConnection: Deferred<MessageConnection> | undefined;
     protected hoverMessage: HTMLDivElement;
     protected lastTouchEnd: TouchEvent | undefined;
+    protected isAttachedCloseListener: boolean = false;
 
     @inject(WorkspaceService) protected readonly workspaceService: WorkspaceService;
     @inject(WebSocketConnectionProvider) protected readonly webSocketConnectionProvider: WebSocketConnectionProvider;
@@ -487,7 +489,7 @@ export class TerminalWidgetImpl extends TerminalWidget implements StatefulWidget
 
                 // Excludes the device status code emitted by Xterm.js
                 const sendData = (data?: string) => {
-                    if (data && !this.deviceStatusCodes.has(data)) {
+                    if (data && !this.deviceStatusCodes.has(data) && !this.disableEnterWhenAttachCloseListener()) {
                         return connection.sendRequest('write', data);
                     }
                 };
@@ -615,7 +617,7 @@ export class TerminalWidgetImpl extends TerminalWidget implements StatefulWidget
             return;
         }
         if (!IBaseTerminalServer.validateId(this.terminalId)
-            && !this.terminalService.getById(this.id)) {
+            || !this.terminalService.getById(this.id)) {
             return;
         }
         const { cols, rows } = this.term;
@@ -669,5 +671,37 @@ export class TerminalWidgetImpl extends TerminalWidget implements StatefulWidget
     setTitle(title: string): void {
         this.title.caption = title;
         this.title.label = title;
+    }
+
+    waitOnExit(waitOnExit?: boolean | string): void {
+        if (waitOnExit) {
+            if (typeof waitOnExit === 'string') {
+                let message = waitOnExit;
+                // Bold the message and add an extra new line to make it stand out from the rest of the output
+                message = `\r\n\x1b[1m${message}\x1b[0m`;
+                this.write(message);
+            }
+            if (this.closeOnDispose === true && typeof this.terminalId === 'number') {
+                this.shellTerminalServer.close(this.terminalId);
+                this.onTermDidClose.fire(this);
+            }
+            this.attachPressEnterKeyToCloseListener(this.term);
+            return;
+        }
+        this.dispose();
+    }
+
+    private attachPressEnterKeyToCloseListener(term: Terminal): void {
+        if (term.textarea) {
+            this.isAttachedCloseListener = true;
+            this.addKeyListener(term.textarea, Key.ENTER, (event: KeyboardEvent) => {
+                this.dispose();
+                this.isAttachedCloseListener = false;
+            });
+        }
+    }
+
+    private disableEnterWhenAttachCloseListener(): boolean {
+        return this.isAttachedCloseListener;
     }
 }
